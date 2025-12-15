@@ -1,0 +1,102 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import zscore
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+
+sns.set(style="whitegrid")
+
+# 2️⃣ Veri Yükleme
+from google.colab import files
+uploaded = files.upload()  # Bu satır çalışınca CSV dosyanı seçip yükle
+
+# Yüklenen dosya adı
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+
+# 3️⃣ Veri Önizleme
+print("Veri seti ilk 5 satır:")
+print(df.head())
+print("\nVeri seti bilgisi:")
+print(df.info())
+print("\nİstatistiksel özet:")
+print(df.describe())
+
+# 4️⃣ Aykırı Değer Temizleme
+numerical_cols = ['trestbps', 'chol', 'thalach', 'oldpeak']
+df_transformed = df.copy()
+
+for col in numerical_cols:
+    z_scores = np.abs(zscore(df_transformed[col]))
+    threshold = 3
+    outlier_indices = z_scores > threshold
+    median_value = df_transformed[col].median()
+    df_transformed.loc[outlier_indices, col] = median_value
+
+# 5️⃣ Korelasyon Matrisi
+plt.figure(figsize=(12,10))
+sns.heatmap(df_transformed.corr(), annot=True, cmap='coolwarm', fmt=".2f")
+plt.title('Değişkenler Arasındaki Korelasyon Matrisi')
+plt.show()
+
+# 6️⃣ Histogramlar
+df_transformed[numerical_cols].hist(figsize=(12,10))
+plt.tight_layout()
+plt.show()
+
+# 7️⃣ Kategorik sütunlar ve One-Hot Encoding
+categorical_cols = ['cp', 'thal', 'slope']
+df_encoded = pd.get_dummies(df_transformed, columns=categorical_cols, drop_first=True)
+
+# 8️⃣ Eğitim ve Test Seti
+X = df_encoded.drop('target', axis=1)
+y = df_encoded['target']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+print("\nEğitim seti boyutu:", X_train.shape)
+print("Test seti boyutu:", X_test.shape)
+
+# 9️⃣ Veriyi Ölçeklendirme
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+print("Veri ölçeklendirme tamamlandı.")
+
+# 10️⃣ Lojistik Regresyon Modeli
+model = LogisticRegression(random_state=42, max_iter=500)
+model.fit(X_train_scaled, y_train)
+print("Model eğitimi tamamlandı.")
+
+# 11️⃣ Tahmin ve Performans
+y_pred = model.predict(X_test_scaled)
+
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+
+print(f"\nDoğruluk (Accuracy): {accuracy:.4f}")
+print(f"Kesinlik (Precision): {precision:.4f}")
+print(f"Geri Çağırma (Recall): {recall:.4f}")
+print(f"F1-Skoru (F1-score): {f1:.4f}")
+print("\nKarmaşıklık Matrisi (Confusion Matrix):")
+print(conf_matrix)
+
+# 12️⃣ Özellik Önemleri
+feature_names = X.columns
+coefficients = model.coef_[0]
+
+feature_importance = pd.DataFrame({'Feature': feature_names, 'Coefficient': coefficients})
+feature_importance = feature_importance.reindex(feature_importance['Coefficient'].abs().sort_values(ascending=False).index)
+
+plt.figure(figsize=(10,8))
+sns.barplot(x='Coefficient', y='Feature', data=feature_importance, palette='viridis')
+plt.title('Lojistik Regresyon Modelinde Özellik Önemleri (Katsayılar)')
+plt.xlabel('Katsayı Değeri')
+plt.ylabel('Özellik')
+plt.show()
